@@ -8,6 +8,9 @@ import {
   X,
   Home,
   Store,
+  Search,
+  Info,
+  Mail
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -22,19 +25,26 @@ const Navbar = () => {
   const pathname = usePathname();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [search, setSearch] = useState(""); // ✅ added
   const cartCount = useSelector((state) => state.cart.total);
 
   const isPlus = has?.({ plan: "plus" });
 
+  // ✅ SEARCH FUNCTION
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (!search.trim()) return;
+    router.push(`/shop?search=${search}`);
+  };
+
   return (
-    // Sticky added for modern feel
     <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between h-20">
           
           {/* LOGO */}
           <Link href="/" className="relative text-3xl font-semibold text-slate-700">
-            <span className="text-green-600">Fill</span>Cart
+            <span className="text-green-600">go</span>Bucket
             <span className="text-green-600 text-4xl leading-0">.</span>
 
             {isPlus && (
@@ -46,18 +56,44 @@ const Navbar = () => {
 
           {/* DESKTOP MENU */}
           <div className="hidden md:flex items-center gap-8 text-slate-600 font-medium">
+            
             <Link 
               href="/" 
               className={`hover:text-green-600 transition ${pathname === "/" ? "text-green-600" : ""}`}
             >
               Home
             </Link>
+
             <Link 
               href="/shop" 
               className={`hover:text-green-600 transition ${pathname === "/shop" ? "text-green-600" : ""}`}
             >
               Shop
             </Link>
+
+            {/* ✅ NEW LINKS */}
+            <Link href="/about" className="hover:text-green-600 transition">
+              About
+            </Link>
+
+            <Link href="/contact" className="hover:text-green-600 transition">
+              Contact
+            </Link>
+
+            {/* ✅ SEARCH BAR */}
+            <form
+              onSubmit={handleSearch}
+              className="hidden lg:flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-full text-sm"
+            >
+              <Search size={16} className="text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search products"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-transparent outline-none w-32"
+              />
+            </form>
 
             <Link href="/cart" className="relative flex items-center gap-2 hover:text-green-600 transition">
               <ShoppingCart size={20} />
@@ -89,12 +125,17 @@ const Navbar = () => {
             )}
           </div>
 
-          {/* MOBILE TOGGLE */}
+          {/* MOBILE */}
           <div className="md:hidden flex items-center gap-4">
             <Link href="/cart" className="relative">
-               <ShoppingCart size={24} className="text-slate-600" />
-               {cartCount > 0 && <span className="absolute -top-2 -right-2 bg-green-600 text-white text-[10px] size-4 rounded-full flex items-center justify-center">{cartCount}</span>}
+              <ShoppingCart size={24} className="text-slate-600" />
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-green-600 text-white text-[10px] size-4 rounded-full flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
             </Link>
+
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-slate-600">
               {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
             </button>
@@ -102,53 +143,57 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* MOBILE DROPDOWN - SaaS Style */}
-      {isMenuOpen && (
-        <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 p-6 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
-          <Link 
-            href="/" 
-            onClick={() => setIsMenuOpen(false)} 
-            className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold"
-          >
-            <Home size={20} className="text-green-600" /> Home
-          </Link>
-          
-          <Link 
-            href="/shop" 
-            onClick={() => setIsMenuOpen(false)} 
-            className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold"
-          >
-            <Store size={20} className="text-green-600" /> Shop
-          </Link>
+      {/* MOBILE DROPDOWN */}
+      
+   {isMenuOpen && (
+  <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-200 p-6 space-y-3 shadow-2xl animate-in slide-in-from-top duration-200">
+    
+    {/* 🔍 SEARCH BAR (ADDED) */}
+    <div className="mb-4">
+      <input
+        type="text"
+        placeholder="Search products..."
+        className="w-full p-3 rounded-xl border border-gray-300 outline-none focus:ring-2 focus:ring-green-500"
+      />
+    </div>
 
-          {/* MY ORDERS - Ab mobile pe saaf dikhega */}
-          {user && (
-            <Link 
-              href="/orders" 
-              onClick={() => setIsMenuOpen(false)} 
-              className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold"
-            >
-              <PackageIcon size={20} className="text-green-600" /> My Orders
-            </Link>
-          )}
+    <Link href="/" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold">
+      <Home size={20} className="text-green-600" /> Home
+    </Link>
 
-          <div className="pt-4 border-t">
-            {!user ? (
-              <button 
-                onClick={openSignIn} 
-                className="w-full py-4 bg-indigo-500 text-white rounded-2xl font-bold"
-              >
-                Sign In
-              </button>
-            ) : (
-              <div className="flex justify-between items-center p-3 bg-slate-900 rounded-2xl text-white">
-                <span className="font-medium ml-2">My Account</span>
-                <UserButton />
-              </div>
-            )}
-          </div>
+    <Link href="/shop" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold">
+      <Store size={20} className="text-green-600" /> Shop
+    </Link>
+
+    {/* ✅ NEW LINKS MOBILE */}
+    <Link href="/about" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold">
+      <Info size={20} className="text-green-600" /> About
+    </Link>
+
+    <Link href="/contact" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold">
+      <Mail size={20} className="text-green-600" /> Contact
+    </Link>
+
+    {user && (
+      <Link href="/orders" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-700 font-semibold">
+        <PackageIcon size={20} className="text-green-600" /> My Orders
+      </Link>
+    )}
+
+    <div className="pt-4 border-t">
+      {!user ? (
+        <button onClick={openSignIn} className="w-full py-4 bg-indigo-500 text-white rounded-2xl font-bold">
+          Sign In
+        </button>
+      ) : (
+        <div className="flex justify-between items-center p-3 bg-slate-900 rounded-2xl text-white">
+          <span className="font-medium ml-2">My Account</span>
+          <UserButton />
         </div>
       )}
+    </div>
+  </div>
+)}
     </nav>
   );
 };
