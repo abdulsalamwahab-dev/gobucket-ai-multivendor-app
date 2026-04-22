@@ -16,7 +16,7 @@ export async function POST(req) {
     return NextResponse.json({ error: "Missing secret" }, { status: 500 });
   }
 
-  // 1. Headers nikaalein
+  // 1. Webhook Headers extraction
   const headerList = await headers();
   const svix_id = headerList.get("svix-id");
   const svix_timestamp = headerList.get("svix-timestamp");
@@ -26,10 +26,9 @@ export async function POST(req) {
     return new Response("Error: Missing svix headers", { status: 400 });
   }
 
-  // 2. Payload parse karein
+  // 2. Parse and Verify Payload
   const payload = await req.json();
   const body = JSON.stringify(payload);
-
   const wh = new Webhook(WEBHOOK_SECRET);
   let evt;
 
@@ -45,53 +44,68 @@ export async function POST(req) {
   }
 
   const eventType = evt.type;
-  console.log(`Webhook received: ${eventType}`);
+  console.log(`Webhook Event Received: ${eventType}`);
 
-  // 3. SUBSCRIPTION LOGIC (Created/Updated)
-  if (eventType === "subscription.created" || eventType === "subscription.updated") {
+  // 3. User ID Extraction (Strict check for csub_ IDs)
+  const userId = 
+    evt.data.payer?.user_id || 
+    evt.data.user_id || 
+    (evt.data.object ? evt.data.object.user_id : null);
+
+  if (!userId || userId.startsWith("csub_")) {
+    return NextResponse.json({ success: true, message: "Ignored: ID is not a User ID" });
+  }
+
+  try {
+    // --- START OF LOGIC ---
     
-    // 🔥 FIX: Pehle payer.user_id check karein kyunki main 'id' subscription ID hoti hai
-    const userId = 
-      evt.data.payer?.user_id || 
-      evt.data.user_id || 
-      (evt.data.object ? evt.data.object.user_id : null);
+    // Default values
+    let planToSet = "free"; 
+    const isSubscriptionEvent = eventType.startsWith("subscription.");
 
-    console.log("Processing User ID:", userId);
-
-    // Filter out subscription IDs (csub_...)
-    if (!userId || userId.startsWith("csub_")) {
-      console.error("❌ Sync Error: Valid User ID not found (Got Subscription ID instead)");
-      return NextResponse.json({ error: "Invalid User ID" }, { status: 200 });
+    // ✅ SIRF Subscription events par status check karein
+    if (isSubscriptionEvent) {
+      const status = evt.data.status;
+      // Agar status active ya trialing hai toh hi plus hoga
+      if (status === "active" || status === "trialing") {
+        planToSet = "plus";
+      }
     }
 
-    try {
-      // Step A: Neon Database update (Upsert)
-      await prisma.user.upsert({
-        where: { id: userId },
-        update: { plan: "plus" },
-        create: {
-          id: userId,
-          plan: "plus",
-          name: evt.data.payer?.first_name || "Member",
-          email: evt.data.payer?.email || "synced@test.com",
-          image: "",
-        },
-      });
+    // ✅ NEON DATABASE SYNC
+    // Agar user.created hai: create block chalega (Plan: Free)
+    // Agar subscription.created/updated hai: update block chalega (Plan: status ke mutabiq)
+    await prisma.user.upsert({
+      where: { id: userId },
+      update: { 
+        // Plan sirf tab update karein jab signal subscription se aaye
+        ...(isSubscriptionEvent && { plan: planToSet })
+      },
+      create: {
+        id: userId,
+        plan: "free", // 👈 Hamesha naya user free se shuru hoga
+        name: evt.data.first_name || evt.data.payer?.first_name || "New User",
+        email: evt.data.email_addresses?.[0]?.email_address || evt.data.payer?.email || "sync@user.com",
+        image: evt.data.image_url || "",
+      },
+    });
 
-      // Step B: Clerk Metadata update (Clerk Dashboard ke liye)
+    // ✅ CLERK METADATA SYNC
+    // Metadata sirf tab badlein jab subscription ka koi action ho
+    if (isSubscriptionEvent) {
       try {
         await clerkClient.users.updateUser(userId, {
-          publicMetadata: { plan: "plus" },
+          publicMetadata: { plan: planToSet },
         });
       } catch (e) {
-        console.log("Clerk Metadata update skipped (likely test user)");
+        console.log("Clerk update skipped (User might not exist yet)");
       }
-
-      console.log(`✅ Successfully upgraded user ${userId} to PLUS`);
-    } catch (error) {
-      console.error("❌ Sync Error:", error.message);
-      return NextResponse.json({ error: error.message }, { status: 200 });
     }
+
+    console.log(`✅ Success: ${userId} is now ${planToSet.toUpperCase()} via ${eventType}`);
+
+  } catch (error) {
+    console.error("❌ Sync Error:", error.message);
   }
 
   return NextResponse.json({ success: true });
