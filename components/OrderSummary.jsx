@@ -1,112 +1,167 @@
-import { PlusIcon, SquarePenIcon, XIcon } from 'lucide-react';
-import React, { useState } from 'react'
-import AddressModal from './AddressModal';
-import { useSelector } from 'react-redux';
-import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+"use client";
+
+import { PlusIcon, SquarePenIcon, XIcon } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import AddressModal from "./AddressModal";
+import { useSelector } from "react-redux";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import axios from "axios";
 
 const OrderSummary = ({ totalPrice, items }) => {
+  const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || "$";
+  const router = useRouter();
+  const { user } = useUser();
 
-    const currency = process.env.NEXT_PUBLIC_CURRENCY_SYMBOL || '$';
+  const addressList = useSelector((state) => state.address.list);
 
-    const router = useRouter();
+  const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [coupon, setCoupon] = useState("");
+  
+  // ✅ New State for fresh plan from DB
+  const [dbPlan, setDbPlan] = useState("free");
 
-    const addressList = useSelector(state => state.address.list);
+  // ✅ Fresh Plan fetch karein Neon DB se
+  useEffect(() => {
+    const fetchUserPlan = async () => {
+      if (user?.id) {
+        try {
+          const { data } = await axios.get(`/api/user-plan?userId=${user.id}`);
+          setDbPlan(data.plan.toLowerCase());
+        } catch (error) {
+          console.error("Error fetching plan:", error);
+        }
+      }
+    };
+    fetchUserPlan();
+  }, [user?.id]);
 
-    const [paymentMethod, setPaymentMethod] = useState('COD');
-    const [selectedAddress, setSelectedAddress] = useState(null);
-    const [showAddressModal, setShowAddressModal] = useState(false);
-    const [couponCodeInput, setCouponCodeInput] = useState('');
-    const [coupon, setCoupon] = useState('');
+  const isPlus = dbPlan === "plus";
 
-    const handleCouponCode = async (event) => {
-        event.preventDefault();
-        
+  // ✅ SHIPPING LOGIC (Back to normal)
+  const shippingFee = isPlus ? 0 : 5;
+
+  // ✅ TOTAL CALCULATION
+  const discountAmount = coupon ? (coupon.discount / 100) * totalPrice : 0;
+  const finalTotal = totalPrice - discountAmount + shippingFee;
+
+  const handleCouponCode = async (event) => {
+    event.preventDefault();
+    try {
+      if (!user) return toast.error("Please login first");
+      const { data } = await axios.post("/api/coupon", {
+        code: couponCodeInput,
+      });
+      setCoupon(data.coupon);
+      toast.success("Coupon applied!");
+    } catch (error) {
+      toast.error(error.response?.data?.error || error.message);
     }
+  };
 
-    const handlePlaceOrder = async (e) => {
-        e.preventDefault();
+  const handlePlaceOrder = async (e) => {
+    e.preventDefault();
+    router.push("/orders");
+  };
 
-        router.push('/orders')
-    }
+  return (
+    <div className="w-full max-w-lg lg:max-w-[340px] bg-slate-50/30 border border-slate-200 text-slate-500 text-sm rounded-xl p-7">
+      <h2 className="text-xl font-medium text-slate-600">Payment Summary</h2>
+      
+      {/* Plan Badge for Debugging (Optional) */}
+      <div className="mt-2">
+        <span className={`px-2 py-1 rounded-full text-[10px] ${isPlus ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+          Plan: {dbPlan.toUpperCase()}
+        </span>
+      </div>
 
-    return (
-        <div className='w-full max-w-lg lg:max-w-[340px] bg-slate-50/30 border border-slate-200 text-slate-500 text-sm rounded-xl p-7'>
-            <h2 className='text-xl font-medium text-slate-600'>Payment Summary</h2>
-            <p className='text-slate-400 text-xs my-4'>Payment Method</p>
-            <div className='flex gap-2 items-center'>
-                <input type="radio" id="COD" onChange={() => setPaymentMethod('COD')} checked={paymentMethod === 'COD'} className='accent-gray-500' />
-                <label htmlFor="COD" className='cursor-pointer'>COD</label>
-            </div>
-            <div className='flex gap-2 items-center mt-1'>
-                <input type="radio" id="STRIPE" name='payment' onChange={() => setPaymentMethod('STRIPE')} checked={paymentMethod === 'STRIPE'} className='accent-gray-500' />
-                <label htmlFor="STRIPE" className='cursor-pointer'>Stripe Payment</label>
-            </div>
-            <div className='my-4 py-4 border-y border-slate-200 text-slate-400'>
-                <p>Address</p>
-                {
-                    selectedAddress ? (
-                        <div className='flex gap-2 items-center'>
-                            <p>{selectedAddress.name}, {selectedAddress.city}, {selectedAddress.state}, {selectedAddress.zip}</p>
-                            <SquarePenIcon onClick={() => setSelectedAddress(null)} className='cursor-pointer' size={18} />
-                        </div>
-                    ) : (
-                        <div>
-                            {
-                                addressList.length > 0 && (
-                                    <select className='border border-slate-400 p-2 w-full my-3 outline-none rounded' onChange={(e) => setSelectedAddress(addressList[e.target.value])} >
-                                        <option value="">Select Address</option>
-                                        {
-                                            addressList.map((address, index) => (
-                                                <option key={index} value={index}>{address.name}, {address.city}, {address.state}, {address.zip}</option>
-                                            ))
-                                        }
-                                    </select>
-                                )
-                            }
-                            <button className='flex items-center gap-1 text-slate-600 mt-1' onClick={() => setShowAddressModal(true)} >Add Address <PlusIcon size={18} /></button>
-                        </div>
-                    )
-                }
-            </div>
-            <div className='pb-4 border-b border-slate-200'>
-                <div className='flex justify-between'>
-                    <div className='flex flex-col gap-1 text-slate-400'>
-                        <p>Subtotal:</p>
-                        <p>Shipping:</p>
-                        {coupon && <p>Coupon:</p>}
-                    </div>
-                    <div className='flex flex-col gap-1 font-medium text-right'>
-                        <p>{currency}{totalPrice.toLocaleString()}</p>
-                        <p>Free</p>
-                        {coupon && <p>{`-${currency}${(coupon.discount / 100 * totalPrice).toFixed(2)}`}</p>}
-                    </div>
-                </div>
-                {
-                    !coupon ? (
-                        <form onSubmit={e => toast.promise(handleCouponCode(e), { loading: 'Checking Coupon...' })} className='flex justify-center gap-3 mt-3'>
-                            <input onChange={(e) => setCouponCodeInput(e.target.value)} value={couponCodeInput} type="text" placeholder='Coupon Code' className='border border-slate-400 p-1.5 rounded w-full outline-none' />
-                            <button className='bg-slate-600 text-white px-3 rounded hover:bg-slate-800 active:scale-95 transition-all'>Apply</button>
-                        </form>
-                    ) : (
-                        <div className='w-full flex items-center justify-center gap-2 text-xs mt-2'>
-                            <p>Code: <span className='font-semibold ml-1'>{coupon.code.toUpperCase()}</span></p>
-                            <p>{coupon.description}</p>
-                            <XIcon size={18} onClick={() => setCoupon('')} className='hover:text-red-700 transition cursor-pointer' />
-                        </div>
-                    )
-                }
-            </div>
-            <div className='flex justify-between py-4'>
-                <p>Total:</p>
-                <p className='font-medium text-right'>{currency}{coupon ? (totalPrice - (coupon.discount / 100 * totalPrice)).toFixed(2) : totalPrice.toLocaleString()}</p>
-            </div>
-            <button onClick={e => toast.promise(handlePlaceOrder(e), { loading: 'placing Order...' })} className='w-full bg-slate-700 text-white py-2.5 rounded hover:bg-slate-900 active:scale-95 transition-all'>Place Order</button>
+      {/* PAYMENT METHOD SECTION */}
+      <p className="text-slate-400 text-xs my-4">Payment Method</p>
+      <div className="flex gap-2 items-center">
+        <input type="radio" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} />
+        <label>COD</label>
+      </div>
+      <div className="flex gap-2 items-center mt-1">
+        <input type="radio" checked={paymentMethod === "STRIPE"} onChange={() => setPaymentMethod("STRIPE")} />
+        <label>Stripe</label>
+      </div>
 
-            {showAddressModal && <AddressModal setShowAddressModal={setShowAddressModal} />}
+      {/* ADDRESS SECTION */}
+      <div className="my-4 py-4 border-y border-slate-200 text-slate-400">
+        <p>Address</p>
+        {selectedAddress ? (
+          <div className="flex gap-2 items-center">
+            <p>{selectedAddress.name}, {selectedAddress.city}, {selectedAddress.state}, {selectedAddress.zip}</p>
+            <SquarePenIcon onClick={() => setSelectedAddress(null)} size={18} className="cursor-pointer" />
+          </div>
+        ) : (
+          <div>
+            {addressList.length > 0 && (
+              <select className="border p-2 w-full my-3 rounded" onChange={(e) => setSelectedAddress(addressList[e.target.value])}>
+                <option>Select Address</option>
+                {addressList.map((a, i) => (<option key={i} value={i}>{a.name}, {a.city}, {a.state}, {a.zip}</option>))}
+              </select>
+            )}
+            <button onClick={() => setShowAddressModal(true)} className="flex items-center gap-1">
+              Add Address <PlusIcon size={18} />
+            </button>
+          </div>
+        )}
+      </div>
 
+      {/* SUMMARY DETAILS */}
+      <div className="pb-4 border-b">
+        <div className="flex justify-between">
+          <div className="text-slate-400">
+            <p>Subtotal:</p>
+            <p>Shipping:</p>
+            {coupon && <p>Coupon ({coupon.code}):</p>}
+          </div>
+          <div className="text-right font-medium">
+            <p>{currency}{totalPrice}</p>
+            <p className={isPlus ? "text-green-600" : ""}>
+              {isPlus ? "FREE" : `${currency}${shippingFee}`}
+            </p>
+            {coupon && <p className="text-red-500">-{currency}{discountAmount.toFixed(2)}</p>}
+          </div>
         </div>
-    )
-}
+      </div>
 
-export default OrderSummary
+      {/* COUPON INPUT */}
+      {!coupon ? (
+        <form onSubmit={(e) => toast.promise(handleCouponCode(e), { loading: "Checking...", })} className="flex gap-2 mt-3">
+          <input value={couponCodeInput} onChange={(e) => setCouponCodeInput(e.target.value)} placeholder="Coupon Code" className="border p-2 w-full rounded" />
+          <button className="bg-slate-600 text-white px-3 rounded">Apply</button>
+        </form>
+      ) : (
+        <div className="flex justify-between items-center bg-green-50 p-2 mt-2 rounded border border-green-200">
+          <div>
+            <p className="font-bold text-green-700 text-xs">{coupon.code}</p>
+            <p className="text-[10px] text-green-600">{coupon.description}</p>
+          </div>
+          <XIcon onClick={() => setCoupon("")} size={16} className="text-green-700 cursor-pointer" />
+        </div>
+      )}
+
+      {/* FINAL TOTAL */}
+      <div className="flex justify-between py-4 text-lg">
+        <p className="text-slate-600 font-bold">Total:</p>
+        <p className="font-bold text-slate-800">
+          {currency}{finalTotal.toFixed(2)}
+        </p>
+      </div>
+
+      <button onClick={handlePlaceOrder} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl transition-all">
+        Place Order
+      </button>
+
+      {showAddressModal && <AddressModal setShowAddressModal={setShowAddressModal} />}
+    </div>
+  );
+};
+
+export default OrderSummary;
