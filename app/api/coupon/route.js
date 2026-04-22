@@ -37,7 +37,7 @@ export async function POST(req) {
     if (coupon.forMember === true) {
       if (!isPlus) {
         return NextResponse.json(
-          { error: "Yeh coupon sirf Plus members ke liye hai. Aapka current plan " + currentPlan + " hai." },
+          { error: "This coupon is valid for members only. Your current plan is " + currentPlan + "." },
           { status: 400 }
         );
       }
