@@ -28,7 +28,7 @@ const PrivacyPolicy = () => {
         {/* Branding Header */}
         <div className="text-center mb-16">
           <Link href="/" className="text-5xl font-semibold text-slate-700 inline-block mb-4">
-            <span className="text-green-600">Fill</span>Cart<span className="text-green-600 text-6xl leading-0">.</span>
+            <span className="text-green-600">go</span>Bucket<span className="text-green-600 text-6xl leading-0">.</span>
           </Link>
           <h1 className="text-2xl font-bold text-slate-800">Privacy & Security Framework</h1>
           <p className="text-slate-500 text-sm mt-2 font-mono">VERSION 2026.01</p>
@@ -51,7 +51,7 @@ const PrivacyPolicy = () => {
 
         <div className="mt-12 p-8 bg-slate-800 rounded-3xl text-slate-300 text-center">
           <p className="text-sm italic">
-            "At FillCart, we believe privacy is a fundamental right. Our engineering team constantly monitors 
+            "At goBucket, we believe privacy is a fundamental right. Our engineering team constantly monitors 
             our Neon DB clusters and Clerk webhooks to ensure your shopping experience remains private."
           </p>
         </div>

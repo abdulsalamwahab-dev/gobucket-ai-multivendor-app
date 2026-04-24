@@ -99,7 +99,7 @@ const handlePlaceOrder = async (e) => {
               toast.success("Order placed successfully! 🥳 Hurray!", { duration: 5000 });
               
               await dispatch(fetchCart({ getToken }));
-              router.push("/orders");
+              router.push("/orders");        
             }
           },
           onCheckoutClosed: async () => {
