@@ -75,57 +75,59 @@ const OrderSummary = ({ totalPrice, items }) => {
     if (!user) return toast.error("Please login to place an order");
     if (!selectedAddress) return toast.error("Please select an address");
 
-    // ✅ CASE 1: PADDLE (Cart won't empty until payment is done)
+    // ✅ PADDLE CASE: Order creation happens first so DB is updated
     if (paymentMethod === "PADDLE") {
       if (!paddle) return toast.error("Payment gateway not ready");
+      
+      const loadingToast = toast.loading("Preparing your order...");
+      try {
+        const token = await getToken();
+        const orderData = {
+          addressId: selectedAddress.id,
+          items,
+          paymentMethod,
+          couponCode: coupon?.code || null,
+        };
 
-      checkoutOpened.current = true;
-      paddle.Checkout.open({
-        settings: {
-          displayMode: "overlay",
-          theme: "light",
-          successUrl: window.location.origin + "/orders",
-        },
-        items: [
-          {
+        // Create Order in DB (backend should mark as isPaid: false initially or handle via webhook)
+        const { data } = await axios.post("/api/orders", orderData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        toast.dismiss(loadingToast);
+        checkoutOpened.current = true;
+
+        paddle.Checkout.open({
+          settings: { 
+            displayMode: "overlay", 
+            theme: "light",
+            successUrl: window.location.origin + "/orders"
+          },
+          items: [{
             priceId: "pri_01kq0ca1hjvxhqkabjh1h7be73",
             quantity: Math.round(finalTotal),
+          }],
+          customData: {
+            orderIds: data.orderIds.join(","),
+            userId: user.id,
           },
-        ],
-        customData: {
-          userId: user.id,
-          addressId: selectedAddress.id,
-          couponCode: coupon?.code || null,
-        },
-        eventCallback: async (event) => {
-          if (event.name === "checkout.completed" || event.name === "transaction.completed") {
-            const token = await getToken();
-            const orderData = {
-              addressId: selectedAddress.id,
-              items,
-              paymentMethod,
-              couponCode: coupon?.code || null,
-              paddleTransactionId: event.data.id, // Optional: for verification
-            };
-
-            try {
-              // ✅ AB ORDER CREATE HOGA AUR CART KHALI HOGI (PAYMENT KE BAAD)
-              await axios.post("/api/orders", orderData, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              toast.success("Payment Successful! Order placed 🎉");
+          eventCallback: async (event) => {
+            // ✅ Payment complete hone par hi cart khali hogi aur redirect hoga
+            if (event.name === "checkout.completed" || event.name === "transaction.completed") {
+              toast.success("Payment Successful! 🎉");
               await dispatch(fetchCart({ getToken }));
               router.push("/orders");
-            } catch (err) {
-              toast.error("Payment done but order creation failed. Contact support.");
             }
-          }
-        },
-      });
+          },
+        });
+      } catch (error) {
+        toast.dismiss(loadingToast);
+        toast.error(error.response?.data?.error || "Failed to initiate order.");
+      }
       return;
     }
 
-    // ✅ CASE 2: COD
+    // ✅ COD CASE
     const placeOrderPromise = async () => {
       const token = await getToken();
       const orderData = {
@@ -183,14 +185,14 @@ const OrderSummary = ({ totalPrice, items }) => {
         ) : (
           <div>
             {addressList.length > 0 && (
-              <select className="border p-2 w-full my-2 rounded bg-white" onChange={(e) => setSelectedAddress(addressList[e.target.value])}>
+              <select className="border p-2 w-full my-2 rounded bg-white text-slate-600" onChange={(e) => setSelectedAddress(addressList[e.target.value])}>
                 <option value="">Select Address</option>
                 {addressList.map((a, i) => (
                   <option key={i} value={i}>{a.name}, {a.city}</option>
                 ))}
               </select>
             )}
-            <button onClick={() => setShowAddressModal(true)} className="flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800">
+            <button onClick={() => setShowAddressModal(true)} className="flex items-center gap-1 text-xs mt-1">
               Add Address <PlusIcon size={16} />
             </button>
           </div>
@@ -222,7 +224,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             placeholder="Coupon Code"
             className="border p-2 w-full rounded outline-none text-slate-700"
           />
-          <button className="bg-slate-600 text-white px-3 rounded text-xs hover:bg-slate-700 transition-colors">Apply</button>
+          <button className="bg-slate-600 text-white px-3 rounded text-xs">Apply</button>
         </form>
       ) : (
         <div className="flex justify-between items-center bg-green-50 p-2 mt-2 rounded border border-green-200">
@@ -230,7 +232,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             <p className="font-bold text-green-700 text-xs">{coupon.code}</p>
             <p className="text-[10px] text-green-600">{coupon.description}</p>
           </div>
-          <XIcon onClick={() => setCoupon("")} size={16} className="text-green-700 cursor-pointer hover:scale-110 transition-transform" />
+          <XIcon onClick={() => setCoupon("")} size={16} className="text-green-700 cursor-pointer" />
         </div>
       )}
 
@@ -239,7 +241,7 @@ const OrderSummary = ({ totalPrice, items }) => {
         <p className="font-bold text-slate-800">{currency}{finalTotal.toFixed(2)}</p>
       </div>
 
-      <button onClick={handlePlaceOrder} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl transition-all font-bold shadow-md active:scale-[0.98]">
+      <button onClick={handlePlaceOrder} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl transition-all font-bold">
         Place Order
       </button>
 
