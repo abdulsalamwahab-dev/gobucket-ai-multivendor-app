@@ -24,7 +24,7 @@ const Footer = () => {
             title: "WEBSITE?",
             links: [
                 { text: "Home", path: '/', icon: null },
-                { text: "Privacy Policy", path: '/', icon: null },
+                { text: "Privacy Policy", path: '/privacy-policy', icon: null },
                 { text: "Become Plus Member", path: '/pricing', icon: null },
                 { text: "Create Your Store", path: '/create-store', icon: null },
             ]
@@ -32,9 +32,9 @@ const Footer = () => {
         {
             title: "CONTACT",
             links: [
-                { text: "+1-212-456-7890", path: '/', icon: MailIcon },
-                { text: "contact@example.com", path: '/', icon: PhoneIcon },
-                { text: "794 Francisco, 94102", path: '/', icon: MapPinIcon }
+                { text: "+49 123 4567890", path: '/', icon: MailIcon },
+                { text: "support@goBucket.com", path: '/', icon: PhoneIcon },
+                { text: "Siegen, Germany", path: '/', icon: MapPinIcon }
             ]
         }
     ];
@@ -80,7 +80,7 @@ const Footer = () => {
                     </div>
                 </div>
                 <p className="py-4 text-sm text-slate-500">
-                    Copyright 2025 © goBucket All Right Reserved.
+                    Copyright 2026 © goBucket All Right Reserved.
                 </p>
             </div>
         </footer>
