@@ -45,6 +45,7 @@ const OrderSummary = ({ totalPrice, items }) => {
 
   const isPlus = dbPlan === "plus";
   const shippingFee = isPlus ? 0 : 5;
+
   const discountAmount = coupon ? (coupon.discount / 100) * totalPrice : 0;
   const finalTotal = totalPrice - discountAmount + shippingFee;
 
@@ -59,7 +60,9 @@ const OrderSummary = ({ totalPrice, items }) => {
     event.preventDefault();
     try {
       if (!user) return toast.error("Please login first");
-      const { data } = await axios.post("/api/coupon", { code: couponCodeInput });
+      const { data } = await axios.post("/api/coupon", {
+        code: couponCodeInput,
+      });
       setCoupon(data.coupon);
       toast.success("Coupon applied!");
     } catch (error) {
@@ -72,59 +75,57 @@ const OrderSummary = ({ totalPrice, items }) => {
     if (!user) return toast.error("Please login to place an order");
     if (!selectedAddress) return toast.error("Please select an address");
 
-    // ✅ CASE 1: PADDLE
+    // ✅ CASE 1: PADDLE (Cart won't empty until payment is done)
     if (paymentMethod === "PADDLE") {
       if (!paddle) return toast.error("Payment gateway not ready");
-      
-      const loadingToast = toast.loading("Preparing checkout...");
-      try {
-        const token = await getToken();
-        const orderData = {
-          addressId: selectedAddress.id,
-          items,
-          paymentMethod,
-          couponCode: coupon?.code || null,
-        };
 
-        // Order create karein backend pe
-        const { data } = await axios.post("/api/orders", orderData, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        toast.dismiss(loadingToast);
-        checkoutOpened.current = true;
-
-        paddle.Checkout.open({
-          settings: { 
-            displayMode: "overlay", 
-            theme: "light",
-            successUrl: window.location.origin + "/orders"
-          },
-          items: [{
-            priceId: "pri_01kpy9dt32f9ezc1wdnznhdhdk",
+      checkoutOpened.current = true;
+      paddle.Checkout.open({
+        settings: {
+          displayMode: "overlay",
+          theme: "light",
+          successUrl: window.location.origin + "/orders",
+        },
+        items: [
+          {
+            priceId: "pri_01kq0ca1hjvxhqkabjh1h7be73",
             quantity: Math.round(finalTotal),
-          }],
-          customData: {
-            orderIds: data.orderIds.join(","),
-            userId: user.id,
           },
-          eventCallback: async (event) => {
-            if (event.name === "checkout.completed" || event.name === "transaction.completed") {
-              // ✅ AB CART PAYMENT KE BAAD KHALI HOGA
+        ],
+        customData: {
+          userId: user.id,
+          addressId: selectedAddress.id,
+          couponCode: coupon?.code || null,
+        },
+        eventCallback: async (event) => {
+          if (event.name === "checkout.completed" || event.name === "transaction.completed") {
+            const token = await getToken();
+            const orderData = {
+              addressId: selectedAddress.id,
+              items,
+              paymentMethod,
+              couponCode: coupon?.code || null,
+              paddleTransactionId: event.data.id, // Optional: for verification
+            };
+
+            try {
+              // ✅ AB ORDER CREATE HOGA AUR CART KHALI HOGI (PAYMENT KE BAAD)
+              await axios.post("/api/orders", orderData, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
               toast.success("Payment Successful! Order placed 🎉");
               await dispatch(fetchCart({ getToken }));
               router.push("/orders");
+            } catch (err) {
+              toast.error("Payment done but order creation failed. Contact support.");
             }
-          },
-        });
-      } catch (error) {
-        toast.dismiss(loadingToast);
-        toast.error(error.response?.data?.error || "Failed to initiate payment.");
-      }
+          }
+        },
+      });
       return;
     }
 
-    // ✅ CASE 2: COD (Cash on Delivery)
+    // ✅ CASE 2: COD
     const placeOrderPromise = async () => {
       const token = await getToken();
       const orderData = {
@@ -138,7 +139,6 @@ const OrderSummary = ({ totalPrice, items }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      // COD mein order bante hi cart khali karna sahi hai
       await dispatch(fetchCart({ getToken }));
       router.push("/orders");
       return data;
@@ -165,7 +165,7 @@ const OrderSummary = ({ totalPrice, items }) => {
       <div className="space-y-2">
         <div className="flex gap-2 items-center">
           <input type="radio" id="cod" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} />
-          <label htmlFor="cod" className="cursor-pointer">COD</label>
+          <label htmlFor="cod" className="cursor-pointer">COD (Cash on Delivery)</label>
         </div>
         <div className="flex gap-2 items-center">
           <input type="radio" id="paddle" checked={paymentMethod === "PADDLE"} onChange={() => setPaymentMethod("PADDLE")} />
@@ -190,7 +190,7 @@ const OrderSummary = ({ totalPrice, items }) => {
                 ))}
               </select>
             )}
-            <button onClick={() => setShowAddressModal(true)} className="flex items-center gap-1 text-xs">
+            <button onClick={() => setShowAddressModal(true)} className="flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800">
               Add Address <PlusIcon size={16} />
             </button>
           </div>
@@ -220,9 +220,9 @@ const OrderSummary = ({ totalPrice, items }) => {
             value={couponCodeInput}
             onChange={(e) => setCouponCodeInput(e.target.value)}
             placeholder="Coupon Code"
-            className="border p-2 w-full rounded outline-none"
+            className="border p-2 w-full rounded outline-none text-slate-700"
           />
-          <button className="bg-slate-600 text-white px-3 rounded text-xs">Apply</button>
+          <button className="bg-slate-600 text-white px-3 rounded text-xs hover:bg-slate-700 transition-colors">Apply</button>
         </form>
       ) : (
         <div className="flex justify-between items-center bg-green-50 p-2 mt-2 rounded border border-green-200">
@@ -230,7 +230,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             <p className="font-bold text-green-700 text-xs">{coupon.code}</p>
             <p className="text-[10px] text-green-600">{coupon.description}</p>
           </div>
-          <XIcon onClick={() => setCoupon("")} size={16} className="text-green-700 cursor-pointer" />
+          <XIcon onClick={() => setCoupon("")} size={16} className="text-green-700 cursor-pointer hover:scale-110 transition-transform" />
         </div>
       )}
 
@@ -239,7 +239,7 @@ const OrderSummary = ({ totalPrice, items }) => {
         <p className="font-bold text-slate-800">{currency}{finalTotal.toFixed(2)}</p>
       </div>
 
-      <button onClick={handlePlaceOrder} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl transition-all font-bold">
+      <button onClick={handlePlaceOrder} className="w-full bg-slate-700 hover:bg-slate-800 text-white py-3 rounded-xl transition-all font-bold shadow-md active:scale-[0.98]">
         Place Order
       </button>
 
