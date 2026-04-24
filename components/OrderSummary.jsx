@@ -45,7 +45,6 @@ const OrderSummary = ({ totalPrice, items }) => {
 
   const isPlus = dbPlan === "plus";
   const shippingFee = isPlus ? 0 : 5;
-
   const discountAmount = coupon ? (coupon.discount / 100) * totalPrice : 0;
   const finalTotal = totalPrice - discountAmount + shippingFee;
 
@@ -60,9 +59,7 @@ const OrderSummary = ({ totalPrice, items }) => {
     event.preventDefault();
     try {
       if (!user) return toast.error("Please login first");
-      const { data } = await axios.post("/api/coupon", {
-        code: couponCodeInput,
-      });
+      const { data } = await axios.post("/api/coupon", { code: couponCodeInput });
       setCoupon(data.coupon);
       toast.success("Coupon applied!");
     } catch (error) {
@@ -75,10 +72,11 @@ const OrderSummary = ({ totalPrice, items }) => {
     if (!user) return toast.error("Please login to place an order");
     if (!selectedAddress) return toast.error("Please select an address");
 
-    // ✅ CASE 1: PADDLE (Wait for payment confirmation)
+    // ✅ CASE 1: PADDLE
     if (paymentMethod === "PADDLE") {
       if (!paddle) return toast.error("Payment gateway not ready");
       
+      const loadingToast = toast.loading("Preparing checkout...");
       try {
         const token = await getToken();
         const orderData = {
@@ -88,12 +86,14 @@ const OrderSummary = ({ totalPrice, items }) => {
           couponCode: coupon?.code || null,
         };
 
-        // Create Order in DB first
+        // Order create karein backend pe
         const { data } = await axios.post("/api/orders", orderData, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        toast.dismiss(loadingToast);
         checkoutOpened.current = true;
+
         paddle.Checkout.open({
           settings: { 
             displayMode: "overlay", 
@@ -101,7 +101,7 @@ const OrderSummary = ({ totalPrice, items }) => {
             successUrl: window.location.origin + "/orders"
           },
           items: [{
-            priceId: "pri_01kq0ca1hjvxhqkabjh1h7be73",
+            priceId: "pri_01kpy9dt32f9ezc1wdnznhdhdk",
             quantity: Math.round(finalTotal),
           }],
           customData: {
@@ -109,8 +109,8 @@ const OrderSummary = ({ totalPrice, items }) => {
             userId: user.id,
           },
           eventCallback: async (event) => {
-            // ✅ Toast only appears here for Paddle
             if (event.name === "checkout.completed" || event.name === "transaction.completed") {
+              // ✅ AB CART PAYMENT KE BAAD KHALI HOGA
               toast.success("Payment Successful! Order placed 🎉");
               await dispatch(fetchCart({ getToken }));
               router.push("/orders");
@@ -118,12 +118,13 @@ const OrderSummary = ({ totalPrice, items }) => {
           },
         });
       } catch (error) {
+        toast.dismiss(loadingToast);
         toast.error(error.response?.data?.error || "Failed to initiate payment.");
       }
       return;
     }
 
-    // ✅ CASE 2: COD (Normal toast.promise for Cash on Delivery)
+    // ✅ CASE 2: COD (Cash on Delivery)
     const placeOrderPromise = async () => {
       const token = await getToken();
       const orderData = {
@@ -137,6 +138,7 @@ const OrderSummary = ({ totalPrice, items }) => {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      // COD mein order bante hi cart khali karna sahi hai
       await dispatch(fetchCart({ getToken }));
       router.push("/orders");
       return data;
@@ -163,7 +165,7 @@ const OrderSummary = ({ totalPrice, items }) => {
       <div className="space-y-2">
         <div className="flex gap-2 items-center">
           <input type="radio" id="cod" checked={paymentMethod === "COD"} onChange={() => setPaymentMethod("COD")} />
-          <label htmlFor="cod" className="cursor-pointer">COD (Cash on Delivery)</label>
+          <label htmlFor="cod" className="cursor-pointer">COD</label>
         </div>
         <div className="flex gap-2 items-center">
           <input type="radio" id="paddle" checked={paymentMethod === "PADDLE"} onChange={() => setPaymentMethod("PADDLE")} />
