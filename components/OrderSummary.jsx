@@ -105,7 +105,7 @@ const handlePlaceOrder = async (e) => {
           onCheckoutClosed: async () => {
             if (checkoutOpened.current) {
               await dispatch(fetchCart({ getToken }));
-              router.push("/orders");
+              router.push("/orders"); 
               router.refresh();
             }
           },
