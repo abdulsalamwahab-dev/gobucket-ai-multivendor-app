@@ -10,7 +10,7 @@ const AboutPage = () => {
         {/* Branding Header */}
         <div className="text-center mb-16">
           <Link href="/" className="text-5xl font-semibold text-slate-700 inline-block mb-4">
-            <span className="text-green-600">Fill</span>Cart<span className="text-green-600 text-6xl leading-0">.</span>
+            <span className="text-green-600">go</span>Bucket<span className="text-green-600 text-6xl leading-0">.</span>
           </Link>
           <h1 className="text-3xl font-bold text-slate-800 mt-4">Next-Gen AI Commerce</h1>
         </div>
